@@ -397,6 +397,11 @@ export default {
               name: this.$t('admin.portfolio_access_control'),
               route: 'accessManagement/portfolioAccessControl',
             },
+            {
+              component: 'Roles',
+              name: this.$t('admin.roles'),
+              route: 'accessManagement/roles',
+            },
           ],
         },
       ],

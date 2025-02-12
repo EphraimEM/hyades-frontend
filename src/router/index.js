@@ -4,7 +4,13 @@ import i18n from '../i18n';
 import EventBus from '../shared/eventbus';
 import { getToken, hasPermission } from '../shared/permissions';
 import { getContextPath } from '../shared/utils';
-
+import {
+  ACCESS_MANAGEMENT,
+  ACCESS_MANAGEMENT_CREATE,
+  ACCESS_MANAGEMENT_READ,
+  ACCESS_MANAGEMENT_UPDATE,
+  ACCESS_MANAGEMENT_DELETE,
+} from '../shared/permissions';
 // Containers
 const DefaultContainer = () => import('@/containers/DefaultContainer');
 
@@ -1142,6 +1148,25 @@ function configRoutes() {
                   'ACCESS_MANAGEMENT_READ',
                   'ACCESS_MANAGEMENT_UPDATE',
                   'ACCESS_MANAGEMENT_DELETE',
+                ],
+              },
+            },
+            {
+              path: 'accessManagement/roles',
+              name: 'Roles',
+              component: () =>
+                import('@/views/administration/accessmanagement/Roles'),
+              meta: {
+                title: i18n.t('admin.roles'),
+                i18n: 'admin.roles',
+                sectionPath: '/admin',
+                sectionName: 'Admin',
+                permissions: [
+                  ACCESS_MANAGEMENT,
+                  ACCESS_MANAGEMENT_CREATE,
+                  ACCESS_MANAGEMENT_READ,
+                  ACCESS_MANAGEMENT_UPDATE,
+                  ACCESS_MANAGEMENT_DELETE,
                 ],
               },
             },
