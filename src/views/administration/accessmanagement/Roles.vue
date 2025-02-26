@@ -14,10 +14,7 @@
       >
       </bootstrap-table>
     </b-card-body>
-    <create-role-modal
-      v-on:createRole="createRole"
-      v-on:refreshTable="refreshTable"
-    />
+    <create-role-modal v-on:refreshTable="refreshTable" />
   </b-card>
 </template>
 
@@ -28,6 +25,12 @@ import i18n from '../../../i18n';
 import CreateRoleModal from './CreateRoleModal';
 import bootstrapTableMixin from '../../../mixins/bootstrapTableMixin';
 import EventBus from '../../../shared/eventbus';
+import ActionableListGroupItem from '../../components/ActionableListGroupItem';
+import ApiKeyListGroupItem from './ApiKeyListGroupItem.vue';
+import SelectLdapGroupModal from './SelectLdapGroupModal';
+import SelectOidcGroupModal from './SelectOidcGroupModal';
+import SelectPermissionModal from './SelectPermissionModal';
+import permissionsMixin from '../../../mixins/permissionsMixin';
 import { Switch as cSwitch } from '@coreui/vue';
 import BInputGroupFormInput from '../../../forms/BInputGroupFormInput';
 
@@ -40,38 +43,6 @@ export default {
     CreateRoleModal,
   },
   mounted() {
-    this.data = [
-      {
-        name: 'Guest',
-        description: 'Guest role',
-        roleId: 'GUEST',
-      },
-      {
-        name: 'Planner',
-        description: 'Planner role',
-        roleId: 'PLANNER',
-      },
-      {
-        name: 'Reporter',
-        description: 'Reporter role',
-        roleId: 'REPORTER',
-      },
-      {
-        name: 'Maintainer',
-        description: 'Maintainer role',
-        roleId: 'MAINTAINER',
-      },
-      {
-        name: 'Developer',
-        description: 'Developer role',
-        roleId: 'DEVELOPER',
-      },
-      {
-        name: 'Owner',
-        description: 'Owner role',
-        roleId: 'OWNER',
-      },
-    ];
     EventBus.$on('admin:roles:rowUpdate', (index, row) => {
       this.$refs.table.updateRow({ index: index, row: row });
       this.$refs.table.expandRow(index);
@@ -91,16 +62,38 @@ export default {
           title: this.$t('admin.role_name'),
           field: 'name',
           sortable: false,
-          formatter(value) {
+          formatter(value, row, index) {
             return xssFilters.inHTMLData(common.valueWithDefault(value, ''));
           },
         },
         {
-          title: this.$t('admin.description'),
-          field: 'description',
+          title: this.$t('admin.api_keys'),
+          field: 'apiKeys',
           sortable: false,
-          formatter(value, row) {
-            return xssFilters.inHTMLData(common.valueWithDefault(value, ''));
+          formatter(value, row, index) {
+            return value
+              ? xssFilters.inHTMLData(
+                  common.valueWithDefault(value.length, '0'),
+                )
+              : 0;
+          },
+        },
+        {
+          title: this.$t('admin.members'),
+          field: 'members',
+          sortable: false,
+          formatter(value, row, index) {
+            let count = 0;
+            if (row.managedUsers) {
+              count += row.managedUsers.length;
+            }
+            if (row.ldapUsers) {
+              count += row.ldapUsers.length;
+            }
+            if (row.oidcUsers) {
+              count += row.oidcUsers.length;
+            }
+            return count;
           },
         },
       ],
@@ -130,68 +123,370 @@ export default {
                     <b-input-group-form-input id="input-role-name" :label="$t('admin.role_name')" input-group-size="mb-3"
                                               required="true" type="text" v-model="name" lazy="true" autofocus="true"
                                               v-debounce:750ms="updateRole" :debounce-events="'keyup'" />
-                    <b-input-group-form-input id="input-role-description" :label="$t('admin.description')" input-group-size="mb-3"
-                                              type="text" v-model="description" lazy="true" />
-                    <b-form-group :label="this.$t('admin.role_id')">
-                      <div>{{ roleId }}</div>
+                     <b-form-group :label="this.$t('admin.api_keys')">
+                      <div class="list-group">
+                        <span v-for="apiKey in apiKeys">
+                          <api-key-list-group-item :role-uuid="role.uuid" :api-key="apiKey" :delete-icon="true" v-on:removeClicked="removeApiKey(apiKey)"/>
+                        </span>
+                        <actionable-list-group-item :add-icon="true" v-on:actionClicked="createApiKey()"/>
+                      </div>
+                    </b-form-group>
+                    <b-form-group :label="this.$t('admin.permissions')">
+                      <div class="list-group">
+                        <span v-for="permission in permissions">
+                          <actionable-list-group-item :value="permission.name" :delete-icon="true" v-on:actionClicked="removePermission(permission)"/>
+                        </span>
+                        <actionable-list-group-item :add-icon="true" v-on:actionClicked="$root.$emit('bv::show::modal', 'selectPermissionModal')"/>
+                      </div>
+                    </b-form-group>
+                    <b-form-group :label="this.$t('admin.mapped_ldap_groups')">
+                      <div class="list-group">
+                        <span v-for="ldapGroup in ldapGroups">
+                          <actionable-list-group-item :value="ldapGroup.dn" :delete-icon="true" v-on:actionClicked="removeLdapGroupMapping(ldapGroup.uuid)"/>
+                        </span>
+                        <actionable-list-group-item :add-icon="true" v-on:actionClicked="$root.$emit('bv::show::modal', 'selectLdapGroupModal')"/>
+                      </div>
+                    </b-form-group>
+                    <b-form-group :label="this.$t('admin.mapped_oidc_groups')">
+                      <div class="list-group">
+                        <span v-for="mappedOidcGroup in mappedOidcGroups">
+                          <actionable-list-group-item :value="mappedOidcGroup.group.name" :delete-icon="true" v-on:actionClicked="removeOidcGroupMapping(mappedOidcGroup.uuid)"/>
+                        </span>
+                        <actionable-list-group-item :add-icon="true" v-on:actionClicked="$root.$emit('bv::show::modal', 'selectOidcGroupModal')"/>
+                      </div>
+                    </b-form-group>
+                  </b-col>
+                  <b-col sm="6">
+                    <b-form-group v-if="managedUsers && managedUsers.length > 0" :label="this.$t('admin.managed_users')">
+                      <div class="list-group">
+                        <span v-for="managedUser in managedUsers">
+                          <actionable-list-group-item :value="managedUser.username" :delete-icon="true" v-on:actionClicked="removeUser(managedUser)"/>
+                        </span>
+                      </div>
+                    </b-form-group>
+                    <b-form-group v-if="ldapUsers && ldapUsers.length > 0"  :label="this.$t('admin.ldap_users')">
+                      <div class="list-group">
+                        <span v-for="ldapUser in ldapUsers">
+                          <actionable-list-group-item :value="ldapUser.username" :delete-icon="true" v-on:actionClicked="removeUser(ldapUser)"/>
+                        </span>
+                      </div>
+                    </b-form-group>
+                    <b-form-group v-if="oidcUsers && oidcUsers.length > 0"  :label="this.$t('admin.oidc_users')">
+                      <div class="list-group">
+                        <span v-for="oidcUser in oidcUsers">
+                          <actionable-list-group-item :value="oidcUser.username" :delete-icon="true" v-on:actionClicked="removeUser(oidcUser)"/>
+                        </span>
+                      </div>
                     </b-form-group>
                     <div style="text-align:right">
-                       <b-button variant="outline-danger" @click="deleteRole">{{ $t('admin.delete_role') }}</b-button>
+                       <b-button variant="outline-danger" @click="deleterole">{{ $t('admin.delete_role') }}</b-button>
                     </div>
                   </b-col>
+                  <select-permission-modal v-on:selection="updatePermissionSelection" />
+                  <select-ldap-group-modal v-on:selection="updateLdapGroupSelection" />
+                  <select-oidc-group-modal v-on:selection="updateOidcGroupSelection" />
                 </b-row>
               `,
+            mixins: [permissionsMixin],
             components: {
               cSwitch,
+              ActionableListGroupItem,
+              ApiKeyListGroupItem,
+              SelectLdapGroupModal,
+              SelectOidcGroupModal,
+              SelectPermissionModal,
               BInputGroupFormInput,
             },
             data() {
               return {
                 role: row,
                 name: row.name,
-                description: row.description,
-                roleId: row.roleId,
+                apiKeys: row.apiKeys,
+                permissions: row.permissions,
+                ldapGroups: row.mappedLdapGroups,
+                mappedOidcGroups: row.mappedOidcGroups,
+                managedUsers: row.managedUsers,
+                ldapUsers: row.ldapUsers,
+                oidcUsers: row.oidcUsers,
+                labelIcon: {
+                  dataOn: '\u2713',
+                  dataOff: '\u2715',
+                },
               };
             },
             methods: {
-              updateRole: function () {
-                for (let i = 0; i < this.data.length; i++) {
-                  if (this.data[i].name === this.name) {
-                    this.data[i].name = this.name;
-                    this.data[i].description = this.description;
-                    break;
-                  }
-                }
-                this.$toastr.s(this.$t('message.updated'));
+              updaterole: function () {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_ROLE}`;
+                this.axios
+                  .post(url, {
+                    uuid: this.role.uuid,
+                    name: this.name,
+                  })
+                  .then((response) => {
+                    this.role = response.data;
+                    EventBus.$emit('admin:roles:rowUpdate', index, this.role);
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
               },
-              deleteRole: function () {
-                for (let i = 0; i < this.data.length; i++) {
-                  if (this.data[i].name === this.name) {
-                    this.data.splice(i, 1);
-                    break;
-                  }
+              deleterole: function () {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_ROLE}`;
+                this.axios
+                  .delete(url, {
+                    data: {
+                      uuid: this.role.uuid,
+                    },
+                  })
+                  .then((response) => {
+                    EventBus.$emit('admin:roles:rowDeleted', index);
+                    this.$toastr.s(this.$t('admin.role_deleted'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              createApiKey() {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_ROLE}/${this.role.uuid}/key`;
+                this.axios
+                  .put(url)
+                  .then((response) => {
+                    if (this.apiKeys) {
+                      this.apiKeys.push(response.data);
+                    } else {
+                      this.apiKeys = [response.data];
+                    }
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              removeApiKey: function (apiKey) {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_role}/key/${apiKey.key}`;
+                this.axios
+                  .delete(url)
+                  .then((response) => {
+                    let k = [];
+                    for (let i = 0; i < this.apiKeys.length; i++) {
+                      if (this.apiKeys[i].key !== apiKey.key) {
+                        k.push(this.apiKeys[i]);
+                      }
+                    }
+                    this.apiKeys = k;
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              updateLdapGroupSelection: function (selections) {
+                this.$root.$emit('bv::hide::modal', 'selectLdapGroupModal');
+                for (let i = 0; i < selections.length; i++) {
+                  let selection = selections[i];
+                  let url = `${this.$api.BASE_URL}/${this.$api.URL_LDAP_MAPPING}`;
+                  this.axios
+                    .put(url, {
+                      role: this.role.uuid,
+                      dn: selection.dn,
+                    })
+                    .then((response) => {
+                      if (
+                        this.ldapGroups === undefined ||
+                        this.ldapGroups === null
+                      ) {
+                        this.ldapGroups = [];
+                      }
+                      this.ldapGroups.push(response.data);
+                      this.ldapGroups.sort();
+                      this.$toastr.s(this.$t('message.updated'));
+                    })
+                    .catch((error) => {
+                      if (error.response.status === 304) {
+                        //this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                      } else {
+                        this.$toastr.w(
+                          this.$t('condition.unsuccessful_action'),
+                        );
+                      }
+                    });
                 }
-                this.$toastr.s(this.$t('admin.role_deleted'));
+              },
+              removeLdapGroupMapping: function (mappingUuid) {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_LDAP_MAPPING}/${mappingUuid}`;
+                this.axios
+                  .delete(url)
+                  .then((response) => {
+                    let k = [];
+                    for (let i = 0; i < this.ldapGroups.length; i++) {
+                      if (this.ldapGroups[i].uuid !== mappingUuid) {
+                        k.push(this.ldapGroups[i]);
+                      }
+                    }
+                    this.ldapGroups = k;
+                    this.role.mappedLdapGroups = this.ldapGroups;
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              updateOidcGroupSelection: function (selections) {
+                this.$root.$emit('bv::hide::modal', 'selectOidcGroupModal');
+                for (let i = 0; i < selections.length; i++) {
+                  let selection = selections[i];
+                  let url = `${this.$api.BASE_URL}/${this.$api.URL_OIDC_MAPPING}`;
+                  this.axios
+                    .put(url, {
+                      role: this.role.uuid,
+                      group: selection.uuid,
+                    })
+                    .then((response) => {
+                      if (
+                        this.mappedOidcGroups === undefined ||
+                        this.mappedOidcGroups === null
+                      ) {
+                        this.mappedOidcGroups = [];
+                      }
+                      this.mappedOidcGroups.push(response.data);
+                      this.mappedOidcGroups.sort();
+                      this.$toastr.s(this.$t('message.updated'));
+                    })
+                    .catch((error) => {
+                      if (error.response.status === 304) {
+                        //this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                      } else {
+                        this.$toastr.w(
+                          this.$t('condition.unsuccessful_action'),
+                        );
+                      }
+                    });
+                }
+              },
+              removeOidcGroupMapping: function (mappingUuid) {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_OIDC_MAPPING}/${mappingUuid}`;
+                this.axios
+                  .delete(url)
+                  .then((response) => {
+                    let k = [];
+                    for (let i = 0; i < this.mappedOidcGroups.length; i++) {
+                      if (this.mappedOidcGroups[i].uuid !== mappingUuid) {
+                        k.push(this.mappedOidcGroups[i]);
+                      }
+                    }
+                    this.mappedOidcGroups = k;
+                    this.role.mappedOidcGroups = this.mappedOidcGroups;
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              updatePermissionSelection: function (selections) {
+                this.$root.$emit('bv::hide::modal', 'selectPermissionModal');
+                for (let i = 0; i < selections.length; i++) {
+                  let selection = selections[i];
+                  let url = `${this.$api.BASE_URL}/${this.$api.URL_PERMISSION}/${selection.name}/role/${this.role.uuid}`;
+                  this.axios
+                    .post(url)
+                    .then((response) => {
+                      this.syncVariables(response.data);
+                      this.$toastr.s(this.$t('message.updated'));
+                    })
+                    .catch((error) => {
+                      if (error.response.status === 304) {
+                        //this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                      } else {
+                        this.$toastr.w(
+                          this.$t('condition.unsuccessful_action'),
+                        );
+                      }
+                    });
+                }
+              },
+              removePermission: function (permission) {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_PERMISSION}/${permission.name}/role/${this.role.uuid}`;
+                this.axios
+                  .delete(url)
+                  .then((response) => {
+                    this.syncVariables(response.data);
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              removeUser: function (user) {
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_USER}/${user.username}/membership`;
+                this.axios
+                  .delete(url, {
+                    data: {
+                      uuid: this.role.uuid,
+                    },
+                  })
+                  .then((response) => {
+                    if (this.managedUsers) {
+                      let k = [];
+                      for (let i = 0; i < this.managedUsers.length; i++) {
+                        if (this.managedUsers[i].username !== user.username) {
+                          k.push(this.managedUsers[i]);
+                        }
+                      }
+                      this.managedUsers = k;
+                    }
+                    if (this.ldapUsers) {
+                      let k = [];
+                      for (let i = 0; i < this.ldapUsers.length; i++) {
+                        if (this.ldapUsers[i].username !== user.username) {
+                          k.push(this.ldapUsers[i]);
+                        }
+                      }
+                      this.ldapUsers = k;
+                    }
+                    if (this.oidcUsers) {
+                      let k = [];
+                      for (let i = 0; i < this.oidcUsers.length; i++) {
+                        if (this.oidcUsers[i].username !== user.username) {
+                          k.push(this.oidcUsers[i]);
+                        }
+                      }
+                      this.oidcUsers = k;
+                    }
+                    this.$toastr.s(this.$t('message.updated'));
+                  })
+                  .catch((error) => {
+                    this.$toastr.w(this.$t('condition.unsuccessful_action'));
+                  });
+              },
+              syncVariables: function (role) {
+                this.role = role;
+                if (role.apiKeys) {
+                  // Some API server responses don't include API keys.
+                  // Take care to not wipe existing API keys from the UI in those cases.
+                  this.apiKeys = role.apiKeys;
+                }
+                this.permissions = role.permissions;
+                //this.ldapGroups = role.mappedLdapGroups;
               },
             },
           });
         },
         onExpandRow: this.vueFormatterInit,
         toolbar: '#customToolbar',
+        responseHandler: function (res, xhr) {
+          res.total = xhr.getResponseHeader('X-Total-Count');
+          return res;
+        },
+        url: `${this.$api.BASE_URL}/${this.$api.URL_ROLE}`,
       },
     };
   },
   methods: {
-    createRole(role) {
-      this.data.push({
-        name: role.name,
-        description: role.description,
-        roleId: 'NEW_ROLE',
-      });
-      this.$toastr.s(this.$t('admin.role_created'));
-    },
     refreshTable: function () {
-      // do nothing
+      this.$refs.table.refresh({
+        silent: true,
+      });
     },
   },
 };

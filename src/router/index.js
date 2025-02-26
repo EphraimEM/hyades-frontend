@@ -13,7 +13,6 @@ import {
 } from '../shared/permissions';
 // Containers
 const DefaultContainer = () => import('@/containers/DefaultContainer');
-
 // Views
 const Dashboard = () => import('@/views/Dashboard');
 const ProjectList = () => import('@/views/portfolio/projects/ProjectList');
@@ -107,7 +106,7 @@ const Permissions = () =>
   import('@/views/administration/accessmanagement/Permissions');
 const PortfolioAccessControl = () =>
   import('@/views/administration/accessmanagement/PortfolioAccessControl');
-
+const Roles = () => import('@/views/administration/accessmanagement/Roles');
 const Component = () => import('@/views/portfolio/projects/Component');
 const Service = () => import('@/views/portfolio/projects/Service');
 const Vulnerability = () =>
@@ -1153,20 +1152,18 @@ function configRoutes() {
             },
             {
               path: 'accessManagement/roles',
-              name: 'Roles',
-              component: () =>
-                import('@/views/administration/accessmanagement/Roles'),
+              component: Roles,
               meta: {
-                title: i18n.t('admin.roles'),
-                i18n: 'admin.roles',
+                title: i18n.t('message.administration'),
+                i18n: 'message.administration',
                 sectionPath: '/admin',
                 sectionName: 'Admin',
                 permissions: [
-                  ACCESS_MANAGEMENT,
-                  ACCESS_MANAGEMENT_CREATE,
-                  ACCESS_MANAGEMENT_READ,
-                  ACCESS_MANAGEMENT_UPDATE,
-                  ACCESS_MANAGEMENT_DELETE,
+                  'ACCESS_MANAGEMENT',
+                  'ACCESS_MANAGEMENT_CREATE',
+                  'ACCESS_MANAGEMENT_READ',
+                  'ACCESS_MANAGEMENT_UPDATE',
+                  'ACCESS_MANAGEMENT_DELETE',
                 ],
               },
             },

@@ -19,7 +19,7 @@
       />
       <b-input-group-form-input
         id="input-role-description"
-        :label="$t('admin.description')"
+        :label="$t('admin.role_description')"
         input-group-size="mb-3"
         type="text"
         v-model="description"

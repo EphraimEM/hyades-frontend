@@ -77,6 +77,7 @@ import OidcGroups from './accessmanagement/OidcGroups';
 import OidcUsers from './accessmanagement/OidcUsers';
 import Permissions from './accessmanagement/Permissions';
 import PortfolioAccessControl from './accessmanagement/PortfolioAccessControl';
+import Roles from './accessmanagement/Roles';
 import Teams from './accessmanagement/Teams';
 
 export default {
@@ -127,6 +128,7 @@ export default {
     Teams,
     Permissions,
     PortfolioAccessControl,
+    Roles,
   },
   created() {
     // Specifies the admin plugin metadata (Vue component, i18n name, and href) of the plugin to load
