@@ -1,65 +1,69 @@
 <template>
   <b-modal
     id="createRoleModal"
+    size="md"
+    @hide="resetValues()"
+    hide-header-close
+    no-stacking
     :title="$t('admin.create_role')"
-    @hidden="resetModal"
-    @shown="focusInput"
-    @ok="createRole"
   >
-    <form @submit.stop.prevent="createRole()">
-      <b-input-group-form-input
-        id="input-role-name"
-        :label="$t('admin.role_name')"
-        input-group-size="mb-3"
-        required="true"
-        type="text"
-        v-model="name"
-        lazy="true"
-        autofocus="true"
-      />
-      <b-input-group-form-input
-        id="input-role-description"
-        :label="$t('admin.role_description')"
-        input-group-size="mb-3"
-        type="text"
-        v-model="description"
-        lazy="true"
-      />
-    </form>
+    <b-input-group-form-input
+      id="name-input"
+      input-group-size="mb-3"
+      type="text"
+      v-model="name"
+      lazy="true"
+      required="true"
+      feedback="true"
+      autofocus="false"
+      :label="$t('admin.role_name')"
+      :feedback-text="$t('admin.required_role_name')"
+    />
+
+    <template v-slot:modal-footer="{ cancel }">
+      <b-button size="md" variant="secondary" @click="cancel()">{{
+        $t('message.close')
+      }}</b-button>
+      <b-button size="md" variant="primary" @click="createUser()">{{
+        $t('message.create')
+      }}</b-button>
+    </template>
   </b-modal>
 </template>
 
 <script>
+import permissionsMixin from '../../../mixins/permissionsMixin';
+import BInputGroupFormInput from '../../../forms/BInputGroupFormInput';
+
 export default {
+  mixins: [permissionsMixin],
+  components: {
+    BInputGroupFormInput,
+  },
   data() {
     return {
-      name: '',
-      description: '',
+      name: null,
     };
   },
   methods: {
-    createRole() {
-      this.$axios
-        .post(this.$api.BASE_URL + '/api/v1/role', {
+    createUser: function () {
+      let url = `${this.$api.BASE_URL}/${this.$api.URL_TEAM}`;
+      this.axios
+        .put(url, {
           name: this.name,
-          description: this.description,
         })
         .then((response) => {
-          this.$toastr.s(this.$t('admin.role_created'));
           this.$emit('refreshTable');
-          this.$bvModal.hide('createRoleModal');
+          this.$toastr.s(this.$t('admin.role_created'));
         })
         .catch((error) => {
           this.$toastr.w(this.$t('condition.unsuccessful_action'));
         });
+      this.$root.$emit('bv::hide::modal', 'createRoleModal');
+      this.resetValues();
     },
-    resetModal() {
-      this.name = '';
-      this.description = '';
-    },
-    focusInput() {
-      const input = this.$refs.nameInput;
-      input.focus();
+    resetValues: function () {
+      this.name = null;
     },
   },
 };

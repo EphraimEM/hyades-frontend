@@ -179,7 +179,7 @@ export default {
                       </div>
                     </b-form-group>
                     <div style="text-align:right">
-                       <b-button variant="outline-danger" @click="deleterole">{{ $t('admin.delete_role') }}</b-button>
+                       <b-button variant="outline-danger" @click="deleteRole">{{ $t('admin.delete_role') }}</b-button>
                     </div>
                   </b-col>
                   <select-permission-modal v-on:selection="updatePermissionSelection" />
@@ -215,7 +215,7 @@ export default {
               };
             },
             methods: {
-              updaterole: function () {
+              updateRole: function () {
                 let url = `${this.$api.BASE_URL}/${this.$api.URL_ROLE}`;
                 this.axios
                   .post(url, {
@@ -231,7 +231,7 @@ export default {
                     this.$toastr.w(this.$t('condition.unsuccessful_action'));
                   });
               },
-              deleterole: function () {
+              deleteRole: function () {
                 let url = `${this.$api.BASE_URL}/${this.$api.URL_ROLE}`;
                 this.axios
                   .delete(url, {
@@ -264,7 +264,7 @@ export default {
                   });
               },
               removeApiKey: function (apiKey) {
-                let url = `${this.$api.BASE_URL}/${this.$api.URL_role}/key/${apiKey.key}`;
+                let url = `${this.$api.BASE_URL}/${this.$api.URL_ROLE}/key/${apiKey.key}`;
                 this.axios
                   .delete(url)
                   .then((response) => {
